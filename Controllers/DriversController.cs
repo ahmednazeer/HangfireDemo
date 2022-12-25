@@ -1,4 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
+using Hangfire.Api.Entities;
+using Hangfire.Api.Dtos;
+using Hangfire.Api.Services;
 
 namespace Hangfire.Api.Controllers
 {
@@ -6,28 +9,38 @@ namespace Hangfire.Api.Controllers
     [Route("[controller]")]
     public class DriversController : ControllerBase
     {
-        private static readonly string[] Summaries = new[]
-        {
-        "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-    };
+        private static List<Driver> _drivers = new List<Driver>() { new Driver { Name = "Ahmed Nazeer", Id = Guid.NewGuid(), Status = 1, DriverNumber = 1 } };
 
-        private readonly ILogger<DriversController> _logger;
-
-        public DriversController(ILogger<DriversController> logger)
+        [HttpGet]
+        public IActionResult GetDriver(string id){
+            var driver= _drivers.SingleOrDefault(d=>d.Id.ToString().Equals(id));
+            if(driver==null)
+                return NotFound();
+            return Ok(driver);
+        }
+        [HttpGet("list")]
+        public IActionResult GetDrivers()
         {
-            _logger = logger;
+            
+            return Ok(_drivers);
+        }
+        [HttpDelete]
+        public IActionResult DeleteDriver(Guid id){
+            var driver= _drivers.SingleOrDefault(d=>d.Id==id);
+            if(driver==null)
+                return NotFound();
+            driver.Status=0;//deleted
+            return NoContent();
         }
 
-        [HttpGet(Name = "GetWeatherForecast")]
-        public IEnumerable<WeatherForecast> Get()
-        {
-            return Enumerable.Range(1, 5).Select(index => new WeatherForecast
-            {
-                Date = DateTime.Now.AddDays(index),
-                TemperatureC = Random.Shared.Next(-20, 55),
-                Summary = Summaries[Random.Shared.Next(Summaries.Length)]
-            })
-            .ToArray();
+        [HttpPost]
+        public IActionResult AddDriver(AddDriverDto driverToAdd){
+            var driver= new Driver{Name=driverToAdd.Name,Status=driverToAdd.Status,DriverNumber=driverToAdd.DriverNumber};
+            _drivers.Add(driver);
+            var jobId = BackgroundJob.Enqueue<IServiceManagement>(ser => ser.SyncData());//run once
+            driver.Status=1;//active
+            return Created("",driver);
         }
+
     }
 }
